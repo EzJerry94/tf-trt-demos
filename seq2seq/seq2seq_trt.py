@@ -76,26 +76,29 @@ def main(args):
         )
     print('Generated tensor by frozen graph')
 
-    with tf.Session(graph=graph) as sess:
-        batch = next(batches)
-        encoder_inputs_, _ = make_batch(batch)
-        decoder_targets_, _ = make_batch([(sequence) + [EOS] for sequence in batch])
-        decoder_inputs_, _ = make_batch([[EOS] + (sequence) for sequence in batch])
-        feed_dict = {encoder_inputs: encoder_inputs_,
-                     decoder_inputs: decoder_inputs_,
-                     decoder_targets: decoder_targets_}
-        start_time = time.process_time()
-        predict_ = sess.run(decoder_prediction, feed_dict)
-        stop_time = time.process_time()
-        for i, (inp, pred) in enumerate(zip(feed_dict[encoder_inputs].T, predict_.T)):
-            print('input > {}'.format(inp))
-            print('predicted > {}'.format(pred))
-            if i >= 10:
-                break
-        print('{:.2f} milliseconds'.format((stop_time - start_time) * 1000))
+    with tf.Session(graph=graph, config=tf.ConfigProto(gpu_options=trt_gpu_ops)) as sess:
+        for _ in range(args.roll):
+            batch = next(batches)
+            encoder_inputs_, _ = make_batch(batch)
+            decoder_targets_, _ = make_batch([(sequence) + [EOS] for sequence in batch])
+            decoder_inputs_, _ = make_batch([[EOS] + (sequence) for sequence in batch])
+            feed_dict = {encoder_inputs: encoder_inputs_,
+                        decoder_inputs: decoder_inputs_,
+                        decoder_targets: decoder_targets_}
+            start_time = time.process_time()
+            predict_ = sess.run(decoder_prediction, feed_dict)
+            stop_time = time.process_time()
+            for i, (inp, pred) in enumerate(zip(feed_dict[encoder_inputs].T, predict_.T)):
+                print('input > {}'.format(inp))
+                print('predicted > {}'.format(pred))
+                if i >= 10:
+                    break
+            print('{:.2f} milliseconds'.format((stop_time - start_time) * 1000))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', default=10000, type=int)
+    parser.add_argument('--batch_size', default=1, type=int)
+    parser.add_argument('--roll', default=3, type=int)
+    parser.add_argument('--precision_mode', choices=['FP32', 'FP16', 'INT8'], default='FP32')
     args = parser.parse_args()
     main(args)
